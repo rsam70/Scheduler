@@ -1,0 +1,67 @@
+﻿<#@ template debug="false" hostspecific="false" language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System.Linq" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ output extension=".cs" #>
+<#@ include file="Globals.t4" #>
+using System;
+using System.Threading.Tasks;
+
+namespace Rsam70.Concurrency.Schedulers
+{
+    /// <summary>
+    /// Defines the schedule interface for functions that return a Task<TResult>
+    /// or a Task<Task<TResult>>
+    /// </summary
+    public interface ISchedulerResult
+    {
+        #region Scheduled function generation returning result Task<<#= resultTemplateChar #>>
+        /// Function generation returning result Task<<#= resultTemplateChar #>>
+        Task<<#= resultTemplateChar #>> Schedule<<#= resultTemplateChar #>>(Func<<#= resultTemplateChar #>> func);
+<#
+// functions generation
+
+List<char> templates = new List<char>();
+List<string> parameters = new List<string>();
+
+for (char c = beginTemplateChar; c<lastTemplateChar; c++)
+{
+    templates.Add(c);
+    parameters.Add($"{c} {Char.ToLower(c)}");
+
+    var strTemplates = string.Join(",", templates);
+    var strParams = strTemplates.ToLower();
+    var strParamsDecl = string.Join(",", parameters);
+#>
+        Task<<#= resultTemplateChar #>> Schedule<<#= strTemplates #>,<#= resultTemplateChar #>>(Func<<#= strTemplates #>,<#= resultTemplateChar #>> func,<#= strParamsDecl #>);
+<#
+}
+#>
+        #endregion Scheduled function generation returning result Task<<#= resultTemplateChar #>>
+        
+        #region Scheduled function generation returning result Task<Task<<#= resultTemplateChar #>>>
+        /// Function generation returning result Task<<#= resultTemplateChar #>>
+        Task<<#= resultTemplateChar #>> Schedule<<#= resultTemplateChar #>>(Func<Task<<#= resultTemplateChar #>>> func);
+<#
+// functions generation
+
+templates.Clear();
+parameters.Clear();
+
+for (char c = beginTemplateChar; c<lastTemplateChar; c++)
+{
+    templates.Add(c);
+    parameters.Add($"{c} {Char.ToLower(c)}");
+
+    var strTemplates = string.Join(",", templates);
+    var strParams = strTemplates.ToLower();   
+    var strParamsDecl = string.Join(",", parameters);
+#>
+        Task<<#= resultTemplateChar #>> Schedule<<#= strTemplates #>,<#= resultTemplateChar #>>(Func<<#= strTemplates #>,Task<<#= resultTemplateChar #>>> func,<#= strParamsDecl #>);
+<#
+}
+#>
+        #endregion Scheduled function generation returning result Task<Task<<#= resultTemplateChar #>>>
+    }
+}

@@ -1,0 +1,4 @@
+﻿<# char beginTemplateChar = 'R';
+char lastTemplateChar     = 'V';
+string resultTemplateChar = "TResult";
+#>

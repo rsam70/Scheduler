@@ -1,0 +1,290 @@
+﻿<#@ template debug="true" hostspecific="false" language="C#" #>
+<#@ assembly name="System.Core" #>
+<#@ import namespace="System" #>
+<#@ import namespace="System.Text" #>
+<#@ import namespace="System.Collections.Generic" #>
+<#@ output extension=".cs" #>
+<#@ include file="Globals.t4" #>
+using System;
+using System.Threading.Tasks;
+
+namespace Rsam70.Concurrency.Schedulers
+{
+    /// <summary>
+    /// Wrapper of task schedules. All parameters
+    /// provided are captured when called.
+    /// </summary> 
+    public class Scheduler:IScheduler
+    {     
+        /// <summary>
+        /// Defines the default scheduler for this particular implementation. All tasks are scheduled
+        /// on a single thread of execution.
+        /// </summary>
+        private readonly TaskScheduler scheduler;
+
+        /// <summary>
+        /// Returns the current task scheduler
+        /// </summary>
+        public TaskScheduler TaskScheduler => scheduler;
+
+        #region c'tor
+        /// <summary>
+        /// Define a custom scheduler for these tasks. This will serve as the default schedular instance
+        /// </summary>
+        public Scheduler(TaskScheduler s)
+        {   
+            scheduler = s;
+        }
+
+        /// <summary>
+        /// Creates an exclusive scheduler. All action scheduled on this instance will execute synchronously.
+        /// </summary>
+        public static IScheduler CreateExclusiveScheduler() => new Scheduler(new ConcurrentExclusiveSchedulerPair().ExclusiveScheduler);
+
+        /// <summary>
+        /// Creates a concurrent scheduler. All action scheduled on this instance will execute in parallel.
+        /// </summary>
+        public static IScheduler CreateConcurrentScheduler() => new Scheduler(new ConcurrentExclusiveSchedulerPair().ConcurrentScheduler);
+
+        #endregion
+
+        #region Scheduled action generation returning result Task
+<#
+// actions generation
+List<char> templates = new List<char>();
+List<string> tuplesParams = new List<string>();
+List<string> parameters = new List<string>();
+int tuplesCount=0;
+
+for (char c = beginTemplateChar; c<=lastTemplateChar; c++)
+{
+    if (templates.Count==0)
+    {
+#>
+        public Task Schedule(Action action)
+        {
+            var tsk = new Task(action);
+            tsk.Start(scheduler);
+            return tsk;
+        }
+
+<#
+    }
+   
+    tuplesCount++;
+    templates.Add(c);
+    parameters.Add($"{c} {Char.ToLower(c)}");
+    tuplesParams.Add($"tmp.Item{tuplesCount}");
+
+    var strTemplates = string.Join(",", templates);
+    var strParams = strTemplates.ToLower();
+    var strParamsDecl = string.Join(",", parameters);
+    var strTuplesItems = string.Join(",", tuplesParams);
+#>
+        public Task Schedule<<#= strTemplates #>>(Action<<#= strTemplates #>> action,<#= strParamsDecl #>)
+        {
+<#      
+    if (templates.Count==1)
+    {
+#>            var tsk = new Task((p)=>action((<#= strTemplates #>)p),<#= strParams #>);
+            tsk.Start(scheduler);
+            return tsk;
+        }
+<#
+    }
+    else
+    {
+#>
+            var tpl = Tuple.Create(<#= strParams #>);
+            var tsk = new Task((p)=>
+            {
+                var tmp =(Tuple<<#= strTemplates #>>)p; 
+                action(<#= strTuplesItems #>);
+            },tpl);
+            tsk.Start(scheduler);
+            return tsk;
+        }
+
+<#
+    }
+}
+#>        #endregion Scheduled action generation returning result Task
+
+        #region Scheduled function generation returning result Task<Task>
+        /// Function returning a Task
+        public Task Schedule(Func<Task> func)
+        {
+            var tsk = new Task<Task>(func);
+            tsk.Start(scheduler);
+            return tsk.Unwrap();
+        }
+
+<#
+templates.Clear();
+tuplesParams.Clear();
+parameters.Clear();
+tuplesCount =0;
+for (char c = beginTemplateChar; c<=lastTemplateChar; c++)
+{
+    tuplesCount++;
+    templates.Add(c);
+    tuplesParams.Add($"tmp.Item{tuplesCount}");
+    parameters.Add($"{c} {Char.ToLower(c)}");
+
+    var strTemplates = string.Join(",", templates);
+    var strParams = strTemplates.ToLower();    
+    var strParamsDecl = string.Join(",", parameters);
+    var strTuplesItems = string.Join(",", tuplesParams);
+#>
+        public Task Schedule<<#= strTemplates #>>(Func<<#= strTemplates #>,Task> func,<#= strParamsDecl #>)
+        {
+<#      
+    if (templates.Count==1)
+    {
+#>   
+            var tsk = new Task<Task>((p)=>func((<#= strTemplates #>)p),<#= strParams #>);
+            tsk.Start(scheduler);
+            return tsk.Unwrap();
+        }
+
+<#
+    }
+    else
+    {
+#>
+            var tpl = Tuple.Create(<#= strParams #>);
+            var tsk = new Task<Task>((p)=>
+            {
+                var tmp =(Tuple<<#= strTemplates #>>)p; 
+                return func(<#= strTuplesItems #>);
+            },tpl);
+            tsk.Start(scheduler);
+            return tsk.Unwrap();
+        }
+
+<#
+    }
+}
+#>        #endregion /// Scheduled function generation returning result Task
+
+        #region Scheduled function generation returning result Task<<#= resultTemplateChar #>>
+        /// Function generation returning result Task<<#= resultTemplateChar #>>
+        public Task<<#= resultTemplateChar #>> Schedule<<#= resultTemplateChar #>>(Func<<#= resultTemplateChar #>> func)
+        {
+            var tsk = new Task<<#= resultTemplateChar #>>(func);
+            tsk.Start(scheduler);
+            return tsk;
+        }
+
+<#
+// functions generation
+
+templates.Clear();
+tuplesParams.Clear();
+parameters.Clear();
+tuplesCount =0;
+
+for (char c = beginTemplateChar; c<=lastTemplateChar; c++)
+{
+    tuplesCount++;
+    tuplesParams.Add($"tmp.Item{tuplesCount}");
+    templates.Add(c);
+    parameters.Add($"{c} {Char.ToLower(c)}");
+
+    var strTemplates = string.Join(",", templates);
+    var strParams = strTemplates.ToLower();
+    var strParamsDecl = string.Join(",", parameters);
+    var strTuplesItems = string.Join(",", tuplesParams);
+#>
+        public Task<<#= resultTemplateChar #>> Schedule<<#= strTemplates #>,<#= resultTemplateChar #>>(Func<<#= strTemplates #>,<#= resultTemplateChar #>> func,<#= strParamsDecl #>)
+        {
+<#
+if (templates.Count==1)
+    {
+#>   
+            var tsk = new Task<<#= resultTemplateChar #>>((p)=>func((<#= strTemplates #>)p),<#= strParams #>);
+            tsk.Start(scheduler);
+            return tsk;
+        }
+
+<#
+    }
+    else
+    {
+#>
+            var tpl = Tuple.Create(<#= strParams #>);
+            var tsk = new Task<<#= resultTemplateChar #>>((p)=>
+            {
+                var tmp =(Tuple<<#= strTemplates #>>)p; 
+                return func(<#= strTuplesItems #>);
+            },tpl);
+            tsk.Start(scheduler);
+            return tsk;
+        }
+
+<#
+    }
+}
+#>        #endregion Scheduled function generation returning result Task<<#= resultTemplateChar #>>
+        
+        #region Scheduled function generation returning result Task<Task<<#= resultTemplateChar #>>>
+        /// Function generation returning result Task<<#= resultTemplateChar #>>
+        public Task<<#= resultTemplateChar #>> Schedule<<#= resultTemplateChar #>>(Func<Task<<#= resultTemplateChar #>>> func)
+        {
+            var tsk = new Task<Task<<#= resultTemplateChar #>>>(func);
+            tsk.Start(scheduler);
+            return tsk.Unwrap();
+        }
+
+<#
+// functions generation
+
+templates.Clear();
+tuplesParams.Clear();
+parameters.Clear();
+tuplesCount =0;
+
+for (char c = beginTemplateChar; c<=lastTemplateChar; c++)
+{
+    tuplesCount++;
+    tuplesParams.Add($"tmp.Item{tuplesCount}");
+    templates.Add(c);
+    parameters.Add($"{c} {Char.ToLower(c)}");
+
+    var strTemplates = string.Join(",", templates);
+    var strParams = strTemplates.ToLower();   
+    var strParamsDecl = string.Join(",", parameters);
+    var strTuplesItems = string.Join(",", tuplesParams);
+#>
+        public Task<<#= resultTemplateChar #>> Schedule<<#= strTemplates #>,<#= resultTemplateChar #>>(Func<<#= strTemplates #>,Task<<#= resultTemplateChar #>>> func,<#= strParamsDecl #>)
+        {
+<#
+if (templates.Count==1)
+    {
+#>          var tsk = new Task<Task<<#= resultTemplateChar #>>>((p)=>func((<#= strTemplates #>)p),<#= strParams #>);
+            tsk.Start(scheduler);
+            return tsk.Unwrap();
+        }
+
+<#
+    }
+    else
+    {
+#>
+            var tpl = Tuple.Create(<#= strParams #>);
+            var tsk = new Task<Task<<#= resultTemplateChar #>>>((p)=>
+            {
+                var tmp =(Tuple<<#= strTemplates #>>)p; 
+                return func(<#= strTuplesItems #>);
+            },tpl);
+            tsk.Start(scheduler);
+            return tsk.Unwrap();
+        }
+
+<#
+    }
+}
+#>
+        #endregion Scheduled function generation returning result Task<Task<<#= resultTemplateChar #>>>
+    }
+}
