@@ -9,7 +9,7 @@ namespace Rsam70.Concurrency.GCD
         {
             var scheduler = Scheduler.CreateExclusiveScheduler();
 
-            for (int i = 0; i < 100; i++)
+            for (int i = 0; i < 101; i++)
             {
                 scheduler.Schedule(() => Console.WriteLine(i));
             }
